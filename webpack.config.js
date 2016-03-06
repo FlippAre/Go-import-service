@@ -2,15 +2,13 @@ var webpack = require('webpack');
 var production = process.env.NODE_ENV === 'production';
 var ExtractPlugin = require('extract-text-webpack-plugin');
 
-var plugins = [
-    new ExtractPlugin('bundle.css') // <=== where should content be piped
-];
 
 module.exports = {
-  entry:  './web/dev/js',
+  entry:  './web/dev/index.js',
   output: {
-      path:     './web/builds',
-      filename: 'bundle.js',
+      path:     './web/assets',
+      publicPath: "/assets/",
+      filename: 'bundle.js'
   },
     module: {
         loaders: [
@@ -24,9 +22,12 @@ module.exports = {
             },
             {
                 test:   /\.css/,
-                loaders: ExtractPlugin.extract('style', 'css!sass'),
+                loader: ExtractPlugin.extract('style', 'css!sass'),
             },
 
         ],
-    }
+      },
+      plugins: [
+            new ExtractPlugin('bundle.css') // <=== where should content be piped
+      ]
 };

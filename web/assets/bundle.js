@@ -58,6 +58,8 @@
 
 	__webpack_require__(11);
 
+	__webpack_require__(13);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -66,8 +68,9 @@
 	  _classCallCheck(this, Greeter);
 	};
 
-	console.log("start i");
+	console.log("start ihjh jhjh jk");
 	new Greeter();
+	_knockout2.default.applyBindings();
 
 /***/ },
 /* 1 */
@@ -9943,6 +9946,45 @@
 /***/ function(module, exports) {
 
 	// removed by extract-text-webpack-plugin
+
+/***/ },
+/* 12 */,
+/* 13 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+	var _knockout = __webpack_require__(1);
+
+	var _knockout2 = _interopRequireDefault(_knockout);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	var MyButton = function () {
+	  function MyButton(params) {
+	    _classCallCheck(this, MyButton);
+
+	    this.message = "hej";
+	  }
+
+	  _createClass(MyButton, [{
+	    key: 'saySomething',
+	    value: function saySomething() {
+	      alert(this.message);
+	    }
+	  }]);
+
+	  return MyButton;
+	}();
+
+	_knockout2.default.components.register('MyButton', {
+	  viewModel: MyButton,
+	  template: '<button data-bind="click: like">Click me!</button>'
+	});
 
 /***/ }
 /******/ ]);

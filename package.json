@@ -4,7 +4,7 @@
   "description": "A webapp to help with go-imports",
   "main": "index.js",
   "scripts": {
-    "start":"webpack-dev-server --content-base web/ --inline --hot"
+    "start": "webpack-dev-server --content-base web/ --inline --hot"
   },
   "author": "",
   "license": "ISC",
@@ -15,7 +15,6 @@
     "css-loader": "^0.23.1",
     "extract-text-webpack-plugin": "^1.0.1",
     "html-loader": "^0.4.3",
-    "knockout": "^3.4.0",
     "node-sass": "^3.4.2",
     "sass-loader": "^3.1.2",
     "style-loader": "^0.13.0",
@@ -23,6 +22,8 @@
     "webpack-dev-server": "^1.14.1"
   },
   "dependencies": {
+    "knockout": "^3.4.0",
+    "knockout-postbox": "^0.5.2",
     "material-design-icons": "^2.2.0",
     "material-design-lite": "^1.1.1"
   }

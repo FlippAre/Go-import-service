@@ -44,7 +44,7 @@
 /* 0 */
 /***/ function(module, exports, __webpack_require__) {
 
-	"use strict";
+	'use strict';
 
 	var _knockout = __webpack_require__(1);
 
@@ -54,11 +54,13 @@
 
 	__webpack_require__(5);
 
-	__webpack_require__(9);
+	__webpack_require__(6);
 
-	__webpack_require__(11);
+	__webpack_require__(10);
 
-	__webpack_require__(13);
+	__webpack_require__(12);
+
+	__webpack_require__(14);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -66,10 +68,14 @@
 
 	var Greeter = function Greeter() {
 	  _classCallCheck(this, Greeter);
+
+	  _knockout2.default.postbox.subscribe("myTopic", function (newValue) {
+	    alert(newValue);
+	  });
 	};
 
-	console.log("start ihjh jhjh jk");
 	new Greeter();
+
 	_knockout2.default.applyBindings();
 
 /***/ },
@@ -5975,6 +5981,234 @@
 
 /***/ },
 /* 4 */
+/***/ function(module, exports, __webpack_require__) {
+
+	// knockout-postbox 0.5.2 | (c) 2015 Ryan Niemeyer |  http://www.opensource.org/licenses/mit-license
+	;(function(factory) {
+	    //CommonJS
+	    if (true) {
+	        factory(__webpack_require__(1), exports);
+	    //AMD
+	    } else if (typeof define === "function" && define.amd) {
+	        define(["knockout", "exports"], factory);
+	    //normal script tag
+	    } else {
+	        factory(ko, ko.postbox = {});
+	    }
+	}(function(ko, exports, undefined) {
+	    var disposeTopicSubscription, existingSubscribe,
+			subscriptions = {},
+			subId = 1;
+
+		exports.subscriptions = subscriptions;
+
+	    //create a global postbox that supports subscribing/publishing
+	    ko.subscribable.call(exports);
+
+	    //keep a cache of the latest value and subscribers
+	    exports.topicCache = {};
+
+	    //allow customization of the function used to serialize values for the topic cache
+	    exports.serializer = ko.toJSON;
+
+	    //wrap notifySubscribers passing topic first and caching latest value
+	    exports.publish = function(topic, value) {
+	        if (topic) {
+	            //keep the value and a serialized version for comparison
+	            exports.topicCache[topic] = {
+	                value: value,
+	                serialized: exports.serializer(value)
+	            };
+	            exports.notifySubscribers(value, topic);
+	        }
+	    };
+
+	    //provide a subscribe API for the postbox that takes in the topic as first arg
+	    existingSubscribe = exports.subscribe;
+	    exports.subscribe = function(topic, action, target, initializeWithLatestValue) {
+	        var subscription, current, existingDispose;
+
+	        if (topic) {
+	            if (typeof target === "boolean") {
+	                initializeWithLatestValue = target;
+	                target = undefined;
+	            }
+
+	            subscription = existingSubscribe.call(exports, action, target, topic);
+				subscription.subId = ++subId;
+				subscriptions[ subId ] = subscription;
+
+	            if (initializeWithLatestValue) {
+	                current = exports.topicCache[topic];
+
+	                if (current !== undefined) {
+	                    action.call(target, current.value);
+	                }
+	            }
+
+				existingDispose = subscription.dispose;
+				subscription.dispose = function() {
+					delete subscriptions[subscription.subId];
+					existingDispose.call(subscription);
+				};
+
+	            return subscription;
+	        }
+	    };
+
+		//clean up all subscriptions and references
+		exports.reset = function() {
+			var subscription;
+
+			for (var id in subscriptions) {
+				if (subscriptions.hasOwnProperty(id)) {
+					subscription = subscriptions[id];
+
+					if (subscription && typeof subscription.dispose === "function") {
+						subscription.dispose();
+					}
+				}
+			}
+
+			exports.topicCache = {};
+		};
+
+	    //by default publish when the previous cached value does not equal the new value
+	    exports.defaultComparer = function(newValue, cacheItem) {
+	        return cacheItem && exports.serializer(newValue) === cacheItem.serialized;
+	    };
+
+	    //augment observables/computeds with the ability to automatically publish updates on a topic
+	    ko.subscribable.fn.publishOn = function(topic, skipInitialOrEqualityComparer, equalityComparer) {
+	        var skipInitialPublish, subscription, existingDispose;
+
+	        if (topic) {
+	            //allow passing the equalityComparer as the second argument
+	            if (typeof skipInitialOrEqualityComparer === "function") {
+	                equalityComparer = skipInitialOrEqualityComparer;
+	            } else {
+	                skipInitialPublish = skipInitialOrEqualityComparer;
+	            }
+
+	            equalityComparer = equalityComparer || exports.defaultComparer;
+
+	            //remove any existing subs
+	            disposeTopicSubscription.call(this, topic, "publishOn");
+
+	            //keep a reference to the subscription, so we can stop publishing
+	            subscription = this.subscribe(function(newValue) {
+					if (!equalityComparer.call(this, newValue, exports.topicCache[topic])) {
+						exports.publish(topic, newValue);
+					}
+				}, this);
+
+				//track the subscription in case of a reset
+				subscription.id = ++subId;
+				subscriptions[subId] = subscription;
+
+				//ensure that we cleanup pointers to subscription on dispose
+				existingDispose = subscription.dispose;
+				subscription.dispose = function() {
+					delete this.postboxSubs[topic].publishOn;
+					delete subscriptions[subscription.id];
+
+					existingDispose.call(subscription);
+				}.bind(this);
+
+				this.postboxSubs[topic].publishOn = subscription;
+
+	            //do an initial publish
+	            if (!skipInitialPublish) {
+	                exports.publish(topic, this());
+	            }
+	        }
+
+	        return this;
+	    };
+
+	    //handle disposing a subscription used to publish or subscribe to a topic
+	    disposeTopicSubscription = function(topic, type) {
+	        var subs = this.postboxSubs = this.postboxSubs || {};
+	        subs[topic] = subs[topic] || {};
+
+	        if (subs[topic][type]) {
+	            subs[topic][type].dispose();
+	        }
+	    };
+
+	    //discontinue automatically publishing on a topic
+	    ko.subscribable.fn.stopPublishingOn = function(topic) {
+	        disposeTopicSubscription.call(this, topic, "publishOn");
+
+	        return this;
+	    };
+
+	    //augment observables/computeds to automatically be updated by notifications on a topic
+	    ko.subscribable.fn.subscribeTo = function(topic, initializeWithLatestValueOrTransform, transform) {
+	        var initializeWithLatestValue, current, callback, subscription, existingDispose,
+	            self = this;
+
+	        //allow passing the filter as the second argument
+	        if (typeof initializeWithLatestValueOrTransform === "function") {
+	            transform = initializeWithLatestValueOrTransform;
+	        } else {
+	            initializeWithLatestValue = initializeWithLatestValueOrTransform;
+	        }
+
+	        if (topic && ko.isWriteableObservable(this)) {
+	            //remove any existing subs
+	            disposeTopicSubscription.call(this, topic, "subscribeTo");
+
+	            //if specified, apply a filter function in the subscription
+	            callback = function(newValue) {
+	                self(transform ? transform.call(self, newValue) : newValue);
+	            };
+
+				////keep a reference to the subscription, so we can unsubscribe, if necessary
+				subscription = exports.subscribe(topic, callback);
+				this.postboxSubs[topic].subscribeTo = subscription;
+
+				//ensure that we cleanup pointers to subscription on dispose
+				existingDispose = subscription.dispose;
+				subscription.dispose = function() {
+					delete this.postboxSubs[topic].subscribeTo;
+					existingDispose.call(subscription);
+				}.bind(this);
+
+	            if (initializeWithLatestValue) {
+	                current = exports.topicCache[topic];
+
+	                if (current !== undefined) {
+	                    callback(current.value);
+	                }
+	            }
+	        }
+
+	        return this;
+	    };
+
+	    //discontinue receiving updates on a topic
+	    ko.subscribable.fn.unsubscribeFrom = function(topic) {
+	        disposeTopicSubscription.call(this, topic, "subscribeTo");
+
+	        return this;
+	    };
+
+	    // both subscribe and publish on the same topic
+	    //   -allows the ability to sync an observable/writeable computed/observableArray between view models
+	    //   -subscribeTo should really not use a filter function, as it would likely cause infinite recursion
+	    ko.subscribable.fn.syncWith = function(topic, initializeWithLatestValue, skipInitialOrEqualityComparer, equalityComparer) {
+	        this.subscribeTo(topic, initializeWithLatestValue).publishOn(topic, skipInitialOrEqualityComparer, equalityComparer);
+
+	        return this;
+	    };
+
+	    ko.postbox = exports;
+	}));
+
+
+/***/ },
+/* 5 */
 /***/ function(module, exports) {
 
 	;(function() {
@@ -6324,17 +6558,19 @@
 	   * @param {?componentHandler.Component} component
 	   */
 	  function deconstructComponentInternal(component) {
-	    var componentIndex = createdComponents_.indexOf(component);
-	    createdComponents_.splice(componentIndex, 1);
+	    if (component) {
+	      var componentIndex = createdComponents_.indexOf(component);
+	      createdComponents_.splice(componentIndex, 1);
 
-	    var upgrades = component.element_.getAttribute('data-upgraded').split(',');
-	    var componentPlace = upgrades.indexOf(component[componentConfigProperty_].classAsString);
-	    upgrades.splice(componentPlace, 1);
-	    component.element_.setAttribute('data-upgraded', upgrades.join(','));
+	      var upgrades = component.element_.getAttribute('data-upgraded').split(',');
+	      var componentPlace = upgrades.indexOf(component[componentConfigProperty_].classAsString);
+	      upgrades.splice(componentPlace, 1);
+	      component.element_.setAttribute('data-upgraded', upgrades.join(','));
 
-	    var ev = document.createEvent('Events');
-	    ev.initEvent('mdl-componentdowngraded', true, true);
-	    component.element_.dispatchEvent(ev);
+	      var ev = document.createEvent('Events');
+	      ev.initEvent('mdl-componentdowngraded', true, true);
+	      component.element_.dispatchEvent(ev);
+	    }
 	  }
 
 	  /**
@@ -8753,7 +8989,8 @@
 	    IS_FOCUSED: 'is-focused',
 	    IS_DISABLED: 'is-disabled',
 	    IS_INVALID: 'is-invalid',
-	    IS_UPGRADED: 'is-upgraded'
+	    IS_UPGRADED: 'is-upgraded',
+	    HAS_PLACEHOLDER: 'has-placeholder'
 	};
 	/**
 	   * Handle input being entered.
@@ -8906,6 +9143,9 @@
 	                if (isNaN(this.maxRows)) {
 	                    this.maxRows = this.Constant_.NO_MAX_ROWS;
 	                }
+	            }
+	            if (this.input_.hasAttribute('placeholder')) {
+	                this.element_.classList.add(this.CssClasses_.HAS_PLACEHOLDER);
 	            }
 	            this.boundUpdateClassesHandler = this.updateClasses_.bind(this);
 	            this.boundFocusHandler = this.onFocus_.bind(this);
@@ -9112,6 +9352,7 @@
 	MaterialLayout.prototype.Constant_ = {
 	    MAX_WIDTH: '(max-width: 1024px)',
 	    TAB_SCROLL_PIXELS: 100,
+	    RESIZE_TIMEOUT: 100,
 	    MENU_ICON: '&#xE5D2;',
 	    CHEVRON_LEFT: 'chevron_left',
 	    CHEVRON_RIGHT: 'chevron_right'
@@ -9214,7 +9455,8 @@
 	   * @private
 	   */
 	MaterialLayout.prototype.keyboardEventHandler_ = function (evt) {
-	    if (evt.keyCode === this.Keycodes_.ESCAPE) {
+	    // Only react when the drawer is open.
+	    if (evt.keyCode === this.Keycodes_.ESCAPE && this.drawer_.classList.contains(this.CssClasses_.IS_DRAWER_OPEN)) {
 	        this.toggleDrawer();
 	    }
 	};
@@ -9318,9 +9560,13 @@
 	    if (this.element_) {
 	        var container = document.createElement('div');
 	        container.classList.add(this.CssClasses_.CONTAINER);
+	        var focusedElement = this.element_.querySelector(':focus');
 	        this.element_.parentElement.insertBefore(container, this.element_);
 	        this.element_.parentElement.removeChild(this.element_);
 	        container.appendChild(this.element_);
+	        if (focusedElement) {
+	            focusedElement.focus();
+	        }
 	        var directChildren = this.element_.childNodes;
 	        var numChildren = directChildren.length;
 	        for (var c = 0; c < numChildren; c++) {
@@ -9455,8 +9701,9 @@
 	            tabContainer.appendChild(leftButton);
 	            tabContainer.appendChild(this.tabBar_);
 	            tabContainer.appendChild(rightButton);
-	            // Add and remove buttons depending on scroll position.
-	            var tabScrollHandler = function () {
+	            // Add and remove tab buttons depending on scroll position and total
+	            // window size.
+	            var tabUpdateHandler = function () {
 	                if (this.tabBar_.scrollLeft > 0) {
 	                    leftButton.classList.add(this.CssClasses_.IS_ACTIVE);
 	                } else {
@@ -9468,8 +9715,20 @@
 	                    rightButton.classList.remove(this.CssClasses_.IS_ACTIVE);
 	                }
 	            }.bind(this);
-	            this.tabBar_.addEventListener('scroll', tabScrollHandler);
-	            tabScrollHandler();
+	            this.tabBar_.addEventListener('scroll', tabUpdateHandler);
+	            tabUpdateHandler();
+	            // Update tabs when the window resizes.
+	            var windowResizeHandler = function () {
+	                // Use timeouts to make sure it doesn't happen too often.
+	                if (this.resizeTimeoutId_) {
+	                    clearTimeout(this.resizeTimeoutId_);
+	                }
+	                this.resizeTimeoutId_ = setTimeout(function () {
+	                    tabUpdateHandler();
+	                    this.resizeTimeoutId_ = null;
+	                }.bind(this), this.Constant_.RESIZE_TIMEOUT);
+	            }.bind(this);
+	            window.addEventListener('resize', windowResizeHandler);
 	            if (this.tabBar_.classList.contains(this.CssClasses_.JS_RIPPLE_EFFECT)) {
 	                this.tabBar_.classList.add(this.CssClasses_.RIPPLE_IGNORE_EVENTS);
 	            }
@@ -9926,30 +10185,30 @@
 
 
 /***/ },
-/* 5 */
+/* 6 */
 /***/ function(module, exports) {
 
 	// removed by extract-text-webpack-plugin
 
 /***/ },
-/* 6 */,
 /* 7 */,
 /* 8 */,
-/* 9 */
+/* 9 */,
+/* 10 */
 /***/ function(module, exports) {
 
 	// removed by extract-text-webpack-plugin
 
 /***/ },
-/* 10 */,
-/* 11 */
+/* 11 */,
+/* 12 */
 /***/ function(module, exports) {
 
 	// removed by extract-text-webpack-plugin
 
 /***/ },
-/* 12 */,
-/* 13 */
+/* 13 */,
+/* 14 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -9960,6 +10219,8 @@
 
 	var _knockout2 = _interopRequireDefault(_knockout);
 
+	__webpack_require__(4);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -9968,22 +10229,22 @@
 	  function MyButton(params) {
 	    _classCallCheck(this, MyButton);
 
-	    this.message = "hej";
+	    this.message = params;
 	  }
 
 	  _createClass(MyButton, [{
 	    key: 'saySomething',
 	    value: function saySomething() {
-	      alert(this.message);
+	      _knockout2.default.postbox.publish("myTopic", this.message);
 	    }
 	  }]);
 
 	  return MyButton;
 	}();
 
-	_knockout2.default.components.register('MyButton', {
+	_knockout2.default.components.register('my-button', {
 	  viewModel: MyButton,
-	  template: '<button data-bind="click: like">Click me!</button>'
+	  template: '<button data-bind="click: saySomething">Click me!</button>'
 	});
 
 /***/ }

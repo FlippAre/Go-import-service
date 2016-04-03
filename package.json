@@ -25,6 +25,7 @@
     "knockout": "^3.4.0",
     "knockout-postbox": "^0.5.2",
     "material-design-icons": "^2.2.0",
-    "material-design-lite": "^1.1.1"
+    "material-design-lite": "^1.1.1",
+    "redux": "^3.3.1"
   }
 }

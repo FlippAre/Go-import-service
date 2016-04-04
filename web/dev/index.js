@@ -8,13 +8,20 @@ import "./colors.css"
 
 import "./components/button/MyButton.js"
 
+import { createStore } from 'redux'
+import buttonClicker from './reducers'
+
+let store = createStore(buttonClicker)
+
 class Greeter {
   constructor() {
     ko.postbox.subscribe("myTopic", function(newValue) {
       alert(newValue)
-});
+    });
   }
 }
+
+
 
 new Greeter()
 
